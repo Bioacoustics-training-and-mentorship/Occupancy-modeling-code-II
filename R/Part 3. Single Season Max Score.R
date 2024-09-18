@@ -1,5 +1,4 @@
-
-getwd()
+# Run occupancy on single season max scores
 
 ## Effort
 effort.21.full=read.csv('data/Survey Effort/2021_Effort_perUnit_0400-0859_1800-1959_split0.csv')
@@ -28,13 +27,14 @@ thresholds=read.csv('data/Thresholds_2021_20230309.csv')
 
 
 ## Habitat Data ##
-# habitat.full=read.csv('./Data/2021_ARU_120m.csv')
-# habitat=habitat.full[habitat.full$cell_unit %in% rownames(effort), ] 
-# habitat=habitat[order(habitat$cell_unit),]
-# rownames(habitat) = habitat$cell_unit
+habitat.full=read.csv('data/2021_ARU_120m.csv')
+habitat=habitat.full[habitat.full$cell_unit %in% rownames(effort), ]
+habitat=habitat[order(habitat$cell_unit),]
+rownames(habitat) = habitat$cell_unit
 
 ## Bird data ##
 encounters.21=read.csv('data/MultiSeason - from MaxScore/Hermit_Warbler_Gt0.578_2021_max_score_summary.csv')
+
 summary(nchar(encounters.21$Cell_Unit))
 # need to add leading zeros for encounters$e2021
 for(i in 1:dim(encounters.21)[1]){
@@ -92,7 +92,7 @@ for(a in 1:length(all.arus)){
     eff[a,s]=sum(effort[a, sampling.start[s]:sampling.stop[s]], na.rm=T)
     if(eff[a,s]>0){
       if( max(encounters[a, sampling.start[s]:sampling.stop[s]], na.rm=T) 
-          >= thresholds$cutoff95.r_conf[thresholds$species == 'Evening Grosbeak']){
+          >= thresholds$cutoff95.r_conf[thresholds$species == 'Hermit Warbler']){
         dets[a,s]=1
       } else {
         dets[a,s]=0
@@ -108,14 +108,20 @@ head(eff)
 ### Fit models ###
 library(unmarked)
 evgrUMF = unmarkedFrameOccu(dets, 
-                            obsCovs = list(effort = as.data.frame(eff)))
-                            #siteCovs = habitat )
+                            obsCovs = list(effort = as.data.frame(eff)),
+                            siteCovs = habitat )
 
 mod0 <- occu(~1 ~1, evgrUMF)
 mod1 <- occu(~effort ~1, evgrUMF)
 mod2 <- occu(~1 ~cc_cfo_mn, evgrUMF)
 mod3 <- occu(~effort ~cc_cfo_mn, evgrUMF)
 
-modSel(fitList(null=mod0, m1=mod1, m2=mod2, m3=mod3))#, days=NUWO.2, hours_days=NUWO.12))
+modSel(fitList(null=mod0, m1=mod1,m2=mod2,m3=mod3))
 summary(mod3)
+plot(mod3)
 
+
+preds = data.frame(cc_cfo_mn=mean(habitat$cc_cfo_mn)) #predict occupancy for mean canopy cover
+preds = data.frame(cc_cfo_mn=habitat$cc_cfo_mn) #predict occupancy for canopy cover at each site?
+pred_psi = predict(mod3, type="state", newdata=preds, appendData=T)
+print(pred_psi)
